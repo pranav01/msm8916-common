@@ -36,20 +36,21 @@ on early-init
     symlink /data/tombstones /tombstones
 
 on init
+
+    # Boringssl hacks
+    export LD_PRELOAD "libboringssl-compat.so"
+
     # Set permissions for persist partition
     mkdir /persist 0771 system system
 
-    # Support legacy paths
-    symlink /sdcard /mnt/sdcard
+    symlink /sdcard /mnt/sdcard0
     symlink /sdcard /storage/sdcard0
-    
-    # Preload the BoringSSL wrapper
-    export LD_PRELOAD "libboringssl-compat.so"
 
 on fs
     mount_all fstab.qcom
     mkdir /persist/data 0700 system system
     restorecon_recursive /persist
+
 on post-fs
     export_rc /system/etc/init.cne.rc
 
@@ -162,9 +163,6 @@ on post-fs-data
     mkdir /data/data/media 0770 media media
 
     mkdir /data/diag_logs 0777 system system 5
-    
-    # disable diag port
-    rm /dev/diag
 
 on early-boot
     # set RLIMIT_MEMLOCK to 64MB
@@ -208,6 +206,7 @@ on boot
     chmod 2770 /dev/socket/qmux_bluetooth
     mkdir /dev/socket/qmux_gps 0770 gps gps
     chmod 2770 /dev/socket/qmux_gps
+
     #Create NETMGR daemon socket area
     mkdir /dev/socket/netmgr 0750 radio radio
 
@@ -223,6 +222,9 @@ on boot
     #Set SUID bit for usbhub
     chmod 4755 /system/bin/usbhub
     chmod 755 /system/bin/usbhub_init
+
+    #Remove SUID bit for iproute2 ip tool
+    chmod 0755 /system/bin/ip
 
 
     chmod 0444 /sys/devices/platform/msm_hsusb/gadget/usb_state
@@ -309,7 +311,7 @@ on property:vold.decrypt=trigger_restart_framework
 on property:persist.env.fastdorm.enabled=true
     setprop persist.radio.data_no_toggle 1
 
-service irsc_util /system/bin/logwrapper /system/bin/irsc_util "/etc/sec_config"
+service irsc_util /system/bin/irsc_util "/etc/sec_config"
     class main
     user root
     oneshot
@@ -528,7 +530,7 @@ service perfd /system/bin/perfd
    group root
    disabled
 
-service thermal-engine /system/bin/thermal-engine
+service thermal-engine /vendor/bin/thermal-engine
    class main
    user root
    group root
@@ -549,6 +551,12 @@ service ppd /system/bin/mm-pp-daemon
     user system
     socket pps stream 0660 system system
     group system graphics
+
+on property:init.svc.surfaceflinger=stopped
+    stop ppd
+
+on property:init.svc.surfaceflinger=running
+    start ppd
 
 service wcnss-service /system/bin/wcnss_service
     class main
